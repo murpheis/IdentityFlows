@@ -1,0 +1,162 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   15.0   Copyright 1985-2017 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+2-user 8-core Stata network perpetual license:
+       Serial number:  501506214235
+         Licensed to:  Econometrics Laboratory
+                       UC Berkeley
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do "analyzeCPS_server.do" analyzeCPS_server.log 
+
+. clear
+
+. *set scheme plotplain , permanently
+. set more off, perm
+(set more preference recorded)
+
+. set maxvar 10000
+
+
+. *cd /Users/murpheis/Dropbox/UCB/IdentityFlows
+. 
+. 
+. * IMPORT DATA
+. use "/scratch/public/murpheis/CPS/output/CPS.dta", clear
+
+. 
+. * DATEM VARIABLE
+. gen datem = 12*(year-1960) + month - 1
+
+. format datem %tm
+
+. 
+. 
+. /*
+> * SET AS PANEL
+> bysort cpsidp: gen N = _N
+> drop if N > 8
+> drop N
+> xtset cpsidp datem, m
+> 
+> * LOOK AT IF SOMEONE CHANGES OUT OF MANUFACTURING
+> gen manu = broadInd == "Manufacturing"
+> gen Lmanu = L.manu
+> gen outManu = Lmanu==1 & manu==0
+> bysort cpsidp: egen outManuEver = max(outManu)
+> 
+> * LOOK ONLY AT PEOPLE WHO LEAVE MANUFACTURING
+> keep if outManuEver
+> 
+> 
+> * DEFINE TIME THAT THEY SWITCH AS t=0
+> bysort cpsidp (datem): gen t = _n
+> gen timeOut = t if outManu
+> bysort cpsidp (datem): egen temp = max(timeOut)
+> replace t = t - temp
+> 
+> * KEEP ONLY IF HAVE 3 MONTHS IN MANUFACTURING
+> gen manuPre = manu * ( t < 0)
+> bysort cpsidp: egen manuPreTot = total(manuPre)
+> keep if manuPreTot >=3
+> */
+. 
+. * SET AS PANEL
+. bysort cpsidp: gen N = _N
+
+. drop if N > 8
+(646,061 observations deleted)
+
+. drop N
+
+. bysort cpsidp (datem): gen t = _n
+
+. xtset cpsidp t
+       panel variable:  cpsidp (unbalanced)
+        time variable:  t, 1 to 8
+                delta:  1 unit
+
+. 
+. * LOOK AT IF SOMEONE CHANGES OUT OF MANUFACTURING
+. gen manu = broadInd == "Manufacturing"
+
+. gen Lmanu = L.manu
+(13,764,069 missing values generated)
+
+. gen outManu = Lmanu==1 & manu==0
+
+. 
+. * KEEP ONLY THOSE WHO LEAVE EXACTLY ONCE (HOW MANY ARE FLIPPING?)
+. bysort cpsidp: egen outManuEver = sum(outManu)
+
+. tab outManuEver
+
+outManuEver |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 | 65,822,746       95.71       95.71
+          1 |  2,612,926        3.80       99.51
+          2 |    313,947        0.46       99.96
+          3 |     23,915        0.03      100.00
+          4 |        344        0.00      100.00
+------------+-----------------------------------
+      Total | 68,773,878      100.00
+
+. keep if outManuEver == 1
+(66,160,952 observations deleted)
+
+. 
+. * DEFINE TIME THAT THEY SWITCH AS t=0
+. gen timeOut = datem if outManu
+(2,198,072 missing values generated)
+
+. bysort cpsidp (datem): egen temp = max(timeOut)
+
+. replace t = datem - temp
+(2,612,736 real changes made)
+
+. 
+. * KEEP ONLY IF HAVE 3 MONTHS IN MANUFACTURING
+. gen manuPre = manu * ( t < 0)
+
+. bysort cpsidp: egen manuPreTot = sum(manuPre)
+
+. keep if manuPreTot >=3
+(1,668,297 observations deleted)
+
+. 
+. 
+. * OUTPUT AS STATA FILE
+. saveold "/scratch/public/murpheis/CPS/output/ManufacturingMovers.dta", replac
+> e
+(saving in Stata 13 format)
+(FYI, saveold has options version(12) and version(11) that write files in
+      older Stata formats)
+file /scratch/public/murpheis/CPS/output/ManufacturingMovers.dta saved
+
+. 
+. * COLLAPSE BY TIME RELATIVE TO LEAVING MANUFACTURING AND SEX
+. collapse (count) cpsidp, by(t broadInd sex)
+
+. 
+. * OUTPUT AS STATA FILE
+. saveold "/scratch/public/murpheis/CPS/output/ManuMoveCollapsed.dta", replace
+(saving in Stata 13 format)
+(FYI, saveold has options version(12) and version(11) that write files in
+      older Stata formats)
+file /scratch/public/murpheis/CPS/output/ManuMoveCollapsed.dta saved
+
+. 
+end of do-file
